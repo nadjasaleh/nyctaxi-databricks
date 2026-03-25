@@ -33,9 +33,12 @@ nyctaxi-databricks/
 ├── README.md                          ← This file
 ├── .gitignore
 ├── README_Files/                      ← Detailed per-layer documentation
-│   ├── group3_gp_bronze_README.md         Bronze table schemas
+│   ├── README_Pre_Process.md              Pre-process notebook guide
+│   ├── README_Bronze_Layer_Notebooks.md   Bronze layer notebook guide
+│   ├── README_bronze_level_table_layout.md Bronze table schemas
 │   ├── README_Data_Quality_Check.md       Data quality check guide
 │   ├── README_Silver_Layer_Notebooks.md   Silver layer notebook guide
+│   ├── README_Gold_Layer_Notebooks.md     Gold layer notebook guide
 │   └── README_testing_data_Summary.md     Yellow taxi data quality summary
 ├── 0. Data quality check/             ← Data quality audits
 │   ├── Data quality check.ipynb           Master quality check (all datasets)
@@ -82,7 +85,8 @@ Systematic quality audits across all four TLC datasets stored in `group3_gp.test
 * Era transitions at 2017: lat/lon → zone IDs, column name changes (e.g. `vendor_id` → `vendorid`)
 * High Volume FHV fare columns only populated from ~2021 onwards
 
-> Detailed write-up: [`README_Files/README_Data_Quality_Check.md`](README_Files/README_Data_Quality_Check.md)
+> Detailed write-up: [`README_Files/README_Data_Quality_Check.md`](README_Files/README_Data_Quality_Check.md)  
+> Yellow taxi findings: [`README_Files/README_testing_data_Summary.md`](README_Files/README_testing_data_Summary.md)
 
 ---
 
@@ -92,6 +96,8 @@ Systematic quality audits across all four TLC datasets stored in `group3_gp.test
 | --- | --- |
 | Convert_parquet_to_json_upload_to_ADLS | Converts parquet files from the ADLS landing zone to JSON and re-uploads them for ingestion. Handles Yellow, Green, FHV, and High Volume FHV files. |
 | ingest_zones_shp | Reads the NYC taxi zones shapefile (`taxi_zones.shp`) using GeoPandas, converts geometry to WKT, and writes to `bronze.taxi_zones`. Also creates `bronze.taxi_zones_lookup` as an external table from a CSV on ADLS. |
+
+> Detailed write-up: [`README_Files/README_Pre_Process.md`](README_Files/README_Pre_Process.md)
 
 ---
 
@@ -106,7 +112,8 @@ Raw data ingestion from Azure Data Lake Storage into Delta tables with minimal t
 
 **Bronze tables:** `yellow`, `green`, `for_hire_vehicles`, `high_volume_fhv`, `taxi_zones`, `taxi_zones_lookup`, `testingnyc`
 
-> Full schema reference: [`README_Files/group3_gp_bronze_README.md`](README_Files/group3_gp_bronze_README.md)
+> Detailed write-up: [`README_Files/README_Bronze_Layer_Notebooks.md`](README_Files/README_Bronze_Layer_Notebooks.md)  
+> Full schema reference: [`README_Files/README_bronze_level_table_layout.md`](README_Files/README_bronze_level_table_layout.md)
 
 ---
 
@@ -167,6 +174,8 @@ All created in the **Fact_Table_All** notebook from `silver.combined_taxi_trips`
 | --- | --- |
 | Populate_Tablecount | Inserts row counts at each pipeline stage into `gold.tabel_count` — bronze ingest (step 1), silver cleaning (step 2), combined silver (step 3), final combined (step 4) |
 
+> Detailed write-up: [`README_Files/README_Gold_Layer_Notebooks.md`](README_Files/README_Gold_Layer_Notebooks.md)
+
 ---
 
 ## Execution Order
@@ -203,3 +212,19 @@ Run notebooks in the following order for a full pipeline refresh:
 * **GeoPandas** — Shapefile parsing for zone boundary ingestion
 * **PySpark / Databricks Runtime** — Core data processing
 * **Delta Lake** — Table storage format throughout all layers
+
+---
+
+## Detailed Documentation
+
+Each pipeline stage has a dedicated README in the `README_Files/` folder:
+
+| README | Covers |
+| --- | --- |
+| [`README_Pre_Process.md`](README_Files/README_Pre_Process.md) | Pre-processing notebooks (parquet conversion, zone ingestion) |
+| [`README_Bronze_Layer_Notebooks.md`](README_Files/README_Bronze_Layer_Notebooks.md) | Bronze ingestion notebooks (ADLS loading, dim_zone creation) |
+| [`README_bronze_level_table_layout.md`](README_Files/README_bronze_level_table_layout.md) | Bronze table schemas and column details |
+| [`README_Data_Quality_Check.md`](README_Files/README_Data_Quality_Check.md) | Data quality audit notebooks and findings |
+| [`README_testing_data_Summary.md`](README_Files/README_testing_data_Summary.md) | Yellow taxi data quality deep-dive with statistics |
+| [`README_Silver_Layer_Notebooks.md`](README_Files/README_Silver_Layer_Notebooks.md) | Silver layer cleaning, enrichment, and combined union |
+| [`README_Gold_Layer_Notebooks.md`](README_Files/README_Gold_Layer_Notebooks.md) | Gold layer dimension tables, fact tables, and row tracking |
