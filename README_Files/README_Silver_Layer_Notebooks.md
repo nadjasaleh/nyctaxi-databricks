@@ -1,6 +1,6 @@
 # Silver Layer Notebooks — Guide
 
-This folder contains four notebooks that transform raw bronze-layer NYC TLC trip data into cleaned, typed, and enriched silver-layer Delta tables. Each notebook reads from `group3_gp.testing` (bronze) and writes to `group3_gp.silver`.
+This folder contains five notebooks that transform raw bronze-layer NYC TLC trip data into cleaned, typed, and enriched silver-layer Delta tables, plus a union notebook that combines all four into a single table. Each cleaning notebook reads from `group3_gp.testing` (bronze) and writes to `group3_gp.silver`.
 
 ---
 
@@ -11,13 +11,14 @@ This folder contains four notebooks that transform raw bronze-layer NYC TLC trip
 | 1 | Yellow Taxi Silver Table | `group3_gp.testing.yellow` | `group3_gp.silver.yellow_taxi_trips` | Complete |
 | 2 | Green Taxi Silver Table | `group3_gp.testing.green` | `group3_gp.silver.green_taxi_trips` | Complete |
 | 3 | For Hire Taxi Silver Table | `group3_gp.testing.for_hire_vehicles` | `group3_gp.silver.fhv_taxi_trips` | Complete |
-| 4 | High volume FHV Taxi Silver Table | `group3_gp.testing.high_volume_fhv` | *(not yet written)* | Incomplete |
+| 4 | High volume FHV Taxi Silver Table | `group3_gp.testing.high_volume_fhv` | `group3_gp.silver.high_volume_fhv` | Complete |
+| 5 | 3.5 join silver tables | All 4 silver tables | `group3_gp.silver.combined_taxi_trips` | Complete |
 
 ---
 
 ## Common Pipeline Pattern
 
-All notebooks follow the same general structure (Yellow and Green share the most code):
+All cleaning notebooks (1–4) follow the same general structure (Yellow and Green share the most code):
 
 | Step | Description |
 | --- | --- |
@@ -43,7 +44,7 @@ Pre-2017 rows have lat/lon coordinates instead of zone IDs. These notebooks use 
 
 ## 1. Yellow Taxi Silver Table
 
-**Path:** `Silver_Layer_Notebooks/Yellow Taxi Silver Table`
+**Path:** `3_Silver_Layer_Notebooks/3 Yellow Taxi Silver Table`
 
 ### Cells
 
@@ -86,7 +87,7 @@ Pre-2017 rows have lat/lon coordinates instead of zone IDs. These notebooks use 
 
 ## 2. Green Taxi Silver Table
 
-**Path:** `Silver_Layer_Notebooks/Green Taxi Silver Table`
+**Path:** `3_Silver_Layer_Notebooks/3 Green Taxi Silver Table`
 
 ### Cells
 
@@ -126,7 +127,7 @@ Pre-2017 rows have lat/lon coordinates instead of zone IDs. These notebooks use 
 
 ## 3. For Hire Taxi Silver Table
 
-**Path:** `Silver_Layer_Notebooks/For Hire Taxi Silver Table`
+**Path:** `3_Silver_Layer_Notebooks/3 For Hire Taxi Silver Table`
 
 Simpler pipeline — no spatial join needed (FHV data has no lat/lon columns, only zone IDs from 2017 onwards).
 
@@ -161,9 +162,7 @@ Simpler pipeline — no spatial join needed (FHV data has no lat/lon columns, on
 
 ## 4. High volume FHV Taxi Silver Table
 
-**Path:** `Silver_Layer_Notebooks/High volume FHV Taxi Silver Table`
-
-> **Status: INCOMPLETE** — The notebook contains a note ("AVBRÖT CLEANING HÄR") indicating that cleaning was paused. There is no final write to a silver table.
+**Path:** `3_Silver_Layer_Notebooks/3 High volume FHV Taxi Silver Table`
 
 ### Cells
 
@@ -172,25 +171,95 @@ Simpler pipeline — no spatial join needed (FHV data has no lat/lon columns, on
 | 1 | Imports | PySpark functions (no Sedona) |
 | 2 | Step 1 — Read table | Read `group3_gp.testing.high_volume_fhv`, print row and column counts |
 | 3 | Step 3 — Drop columns | Remove `sr_flag`, `originating_base_num`, `dispatching_base_num`, `congestion_surcharge`, `wav_request_flag`, `wav_match_flag`, `cbd_congestion_fee`, `shared_request_flag`, `access_a_ride_flag` |
-| 4 | — | Initial type casting attempt (detailed column_types dict with many columns), adds `taxi_type = "High Volume FHV"` |
-| 5 | — | **Markdown note:** Cleaning was paused here |
-| 6 | Step 4 — Cast columns (revised) | Simplified approach — only casts `pickup_datetime` and `dropoff_datetime` to timestamp; adds `service_type = "High Volume FHV"` and `taxi_type = "unknown"`; casts location IDs to integer |
-| 7 | Step 4b — Map legacy codes | Placeholder cell — only imports, no actual mapping logic implemented |
-| 8 | Step 5 — Filter bad rows | Filter null timestamps, dropoff <= pickup, null location IDs |
-| 9 | — | Create temp view `final_df` |
-| 10–11 | — | Exploratory SQL: validate `dolocationid` ranges, year distribution |
+| 4 | — | Rename columns: `tips` → `tip_amount`, `tolls` → `tolls_amount`, `trip_miles` → `trip_distance` |
+| 5 | Step 4 — Cast columns | Cast `pickup_datetime` and `dropoff_datetime` to timestamp; adds `service_type = "High Volume FHV"` and `taxi_type = "unknown"`; casts location IDs to integer |
+| 6 | Step 5 — Filter bad rows | Filter null timestamps, dropoff <= pickup, null location IDs |
+| 7 | — | Write to `group3_gp.silver.high_volume_fhv` (Delta, overwrite) |
 
 ### Columns dropped
 
 `sr_flag`, `originating_base_num`, `dispatching_base_num`, `congestion_surcharge`, `wav_request_flag`, `wav_match_flag`, `cbd_congestion_fee`, `shared_request_flag`, `access_a_ride_flag`
 
-### Known gaps
+### Columns renamed
 
-* No legacy code mapping implemented (Step 4b is empty)
-* Fare columns (`base_passenger_fare`, `driver_pay`, `tips`, `tolls`, `bcf`, `sales_tax`) are not cast to proper types in the final path
-* `shared_match_flag` is retained but not mapped
-* No final write to a silver Delta table
-* The initial casting cell (cell 4) has a bug: it overwrites `df` inside the loop instead of accumulating changes on `df_clean`
+| Original | Renamed |
+| --- | --- |
+| `tips` | `tip_amount` |
+| `tolls` | `tolls_amount` |
+| `trip_miles` | `trip_distance` |
+
+### Columns added
+
+| Column | Value | Purpose |
+| --- | --- | --- |
+| `service_type` | `"High Volume FHV"` | Identifies the service category |
+| `taxi_type` | `"unknown"` | Placeholder |
+
+---
+
+## 5. Join Silver Tables (Combined)
+
+**Path:** `3_Silver_Layer_Notebooks/3.5 join silver tables`
+
+Unions all four individual silver tables into a single unified table with a shared schema, performs additional cleaning, calculates missing distances using spatial centroids, and deduplicates.
+
+### Cells
+
+| Cell | Title | Description |
+| --- | --- | --- |
+| 1 | Install dependencies | `%pip install apache-sedona` |
+| 2 | — | Restart Python |
+| 3 | — | Initialize SedonaContext |
+| 4 | Load silver tables | Read all 4 silver tables: `fhv_taxi_trips`, `yellow_taxi_trips`, `green_taxi_trips`, `high_volume_fhv` |
+| 5 | Define target schema and union | Define the 19-column target schema and align each table using `select` with `cast` and `lit(None)` for missing columns; union all 4 DataFrames |
+| 6–7 | Clean combined data | Replace faulty values with nulls: invalid zone IDs (≤0 or >265), unknown payment/rate/vendor labels; add boolean flags for calculated fields (`calculated_trip_distance`, `calculated_trip_time`, `calculated_total_amount`) |
+| 8–9 | Calculate missing distances | Use Sedona to compute zone centroids from `group3_gp.gold.dim_zone` geometry (EPSG:2263 → 4326); join pickup/dropoff centroids; calculate Haversine distance between centroids for rows missing `trip_distance` |
+| 10–11 | Finalize distances | Replace null `trip_distance` with the calculated centroid distance; drop helper columns (`pu_lon`, `pu_lat`, `do_lon`, `do_lat`, `calc_distance`, `base_passenger_fare`, `fare_amount`) |
+| 12 | Convert miles to km | Multiply all `trip_distance` values by 1.60934 |
+| 13–14 | Deduplicate | Run `dropDuplicates()` (full-row), then a second pass on key columns: `taxi_type`, `pickup_datetime`, `dropoff_datetime`, `pulocationid`, `dolocationid`, `trip_distance`, `total_amount` |
+| 15–16 | Save combined table | Write to `group3_gp.silver.combined_taxi_trips` (Delta, overwrite with schema overwrite) |
+
+### Target Schema
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `taxi_type` | string | e.g. "Yellow", "Green", "unknown" |
+| `service_type` | string | e.g. "yellow", "green", "fhv", "High Volume FHV" |
+| `pickup_datetime` | timestamp | |
+| `dropoff_datetime` | timestamp | |
+| `trip_time` | double | In seconds |
+| `dolocationid` | int | Dropoff zone ID (1–265) |
+| `pulocationid` | int | Pickup zone ID (1–265) |
+| `trip_distance` | double | Converted to km in final step |
+| `extra` | decimal(10,2) | |
+| `fare_amount` | decimal(10,2) | Dropped in final step |
+| `mta_tax` | decimal(10,2) | |
+| `tip_amount` | decimal(10,2) | |
+| `tolls_amount` | decimal(10,2) | |
+| `total_amount` | decimal(10,2) | |
+| `payment_types` | string | Descriptive label |
+| `rate_codes` | string | Descriptive label |
+| `vendors` | string | Descriptive label |
+| `base_passenger_fare` | decimal(10,2) | HVFHV only; dropped in final step |
+| `bcf` | decimal(10,2) | Black car fund (HVFHV only) |
+
+### Calculated boolean flags added
+
+| Flag | Meaning |
+| --- | --- |
+| `calculated_trip_distance` | `true` if original distance was null/zero — value was computed from zone centroids |
+| `calculated_trip_time` | `true` if original trip_time was null — value was computed from pickup/dropoff timestamps |
+| `calculated_total_amount` | `true` if original total_amount was null — value was computed as sum of fare components |
+
+### Key transformations
+
+* Zone IDs outside 1–265 are set to null
+* Unknown/unrecognised payment types, rate codes, and vendors are set to null
+* Missing `trip_time` is calculated as `dropoff_datetime - pickup_datetime` in seconds
+* Missing `total_amount` is calculated as sum of fare components
+* Missing `trip_distance` is estimated using Haversine distance between zone centroids
+* All distances are converted from miles to kilometres (×1.60934)
+* Two-pass deduplication: full-row, then key-column subset
 
 ---
 
@@ -201,12 +270,13 @@ Simpler pipeline — no spatial join needed (FHV data has no lat/lon columns, on
 | `group3_gp.silver.yellow_taxi_trips` | Yellow | Yes (Sedona) | Yes (payment, vendor, ratecode) | Yes |
 | `group3_gp.silver.green_taxi_trips` | Green | Yes (Sedona) | Yes (payment, vendor, ratecode) | Yes |
 | `group3_gp.silver.fhv_taxi_trips` | FHV | No | N/A (no coded fields) | Yes |
-| *(High Volume FHV — TBD)* | High Vol FHV | No | Not yet implemented | No |
+| `group3_gp.silver.high_volume_fhv` | High Vol FHV | No | No (columns renamed only) | Yes |
+| `group3_gp.silver.combined_taxi_trips` | All 4 above | Yes (centroid distance) | N/A (uses labels from upstream) | Yes |
 
 ---
 
 ## Dependencies
 
-* **Apache Sedona** — Required by Yellow and Green notebooks for spatial joins (`%pip install apache-sedona`)
-* **`group3_gp.gold.dim_zone`** — Taxi zone polygon reference table (SRID 2263, NY State Plane) used for lat/lon → zone ID imputation
+* **Apache Sedona** — Required by Yellow, Green, and join notebooks for spatial joins (`%pip install apache-sedona`)
+* **`group3_gp.gold.dim_zone`** — Taxi zone polygon reference table (SRID 2263, NY State Plane) used for lat/lon → zone ID imputation and centroid distance calculation
 * **`group3_gp.testing.*`** — Bronze-layer source tables (all columns stored as `STRING`)
