@@ -1,6 +1,6 @@
 # nyctaxi-databricks
 
-End-to-end data engineering pipeline for NYC Taxi & Limousine Commission (TLC) trip data on Databricks, following the **medallion architecture** (Bronze → Silver → Gold). The project ingests raw trip records for four taxi types — Yellow, Green, For-Hire Vehicles (FHV), and High Volume FHV (Uber, Lyft, etc.) — cleans and enriches them, and produces analytics-ready fact and dimension tables.
+End-to-end data engineering pipeline for NYC Taxi & Limousine Commission (TLC) trip data on Databricks, following the **medallion architecture** (Bronze → Silver → Gold). The project ingests raw trip records for four taxi types — Yellow, Green, For-Hire Vehicles (FHV), and High Volume FHV (Uber, Lyft, etc.) — cleans and enriches them, and produces analytics-ready fact and dimension tables. 
 
 ---
 
